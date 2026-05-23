@@ -21,6 +21,7 @@ services:
     networks:
       - voting-network
   vote:
+    image: voting-vote:local
     build: ./vote
     container_name: vote
     ports:
@@ -30,6 +31,7 @@ services:
     depends_on:
       - redis
   result:
+    image: voting-result:local
     build: ./result
     container_name: result
     ports:
@@ -42,6 +44,7 @@ services:
       db:
         condition: service_healthy
   worker:
+    image: voting-worker:local
     build: ./worker
     container_name: worker
     networks:

@@ -1,4 +1,4 @@
-name: CI - Docker Compose Validation
+name: CI - DevSecOps Docker Compose
 
 on:
   push:
@@ -9,9 +9,14 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
-  docker-compose-ci:
-    name: Build and test with Docker Compose
+  devsecops-ci:
+    name: Build, test and security scan
     runs-on: ubuntu-latest
 
     steps:
@@ -29,17 +34,67 @@ jobs:
           docker --version
           docker compose version
 
+      - name: Run Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH, CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
       - name: Validate docker-compose.yml
         run: docker compose config
 
       - name: Build Docker images
         run: docker compose build
 
+      - name: Scan vote image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: voting-vote:local
+          severity: HIGH, CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Scan result image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: voting-result:local
+          severity: HIGH, CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Scan worker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: voting-worker:local
+          severity: HIGH, CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
       - name: Start services
         run: docker compose up -d
 
-      - name: Show running containers
-        run: docker compose ps
+      - name: Wait for services
+        run: |
+          sleep 20
+          docker compose ps
+
+      - name: Test vote service
+        run: curl -f http://localhost:5000 || exit 1
+
+      - name: Test result service
+        run: curl -f http://localhost:5001 || exit 1
 
       - name: Show logs
         if: always()
