@@ -13,6 +13,7 @@ permissions:
   contents: read
   security-events: write
   actions: read
+  id-token: write
 
 jobs:
   devsecops-ci:
@@ -95,6 +96,17 @@ jobs:
 
       - name: Test result service
         run: curl -f http://localhost:5001 || exit 1
+
+      - name: Configure AWS credentials
+        if: github.event_name == 'push' && && github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Verify AWS identity
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: aws sts get-caller-identity
 
       - name: Show logs
         if: always()
