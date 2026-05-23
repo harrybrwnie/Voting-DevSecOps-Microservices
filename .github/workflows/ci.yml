@@ -44,7 +44,7 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
-          severity: HIGH, CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
           format: table
@@ -59,7 +59,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: voting-vote:local
-          severity: HIGH, CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
           format: table
@@ -68,7 +68,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: voting-result:local
-          severity: HIGH, CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
           format: table
@@ -77,7 +77,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: voting-worker:local
-          severity: HIGH, CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
           format: table
