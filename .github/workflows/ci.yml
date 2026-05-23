@@ -116,7 +116,7 @@ jobs:
           ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
       - name: Tag Docker images for ECR
-        if: github.event_name == 'push' && github.ref == 'ref/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           docker tag voting-vote:local $ECR_REGISTRY/voting-vote:$IMAGE_TAG
@@ -128,7 +128,7 @@ jobs:
           docker tag voting-worker:local $ECR_REGISTRY/voting-worker:latest
 
       - name: Push Docker images to ECR
-        if: github.event_name == 'push' && github.ref == 'ref/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
