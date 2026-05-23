@@ -1,0 +1,48 @@
+namespace: voting-dev
+
+imagePullSecrets:
+  - name: ecr-secret
+
+image:
+  registry: "911540681678.dkr.ecr.us-east-1.amazonaws.com"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+vote:
+  replicaCount: 1
+  image:
+    repository: voting-vote
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+
+result:
+  replicaCount: 1
+  image:
+    repository: voting-result
+  service:
+    type: ClusterIP
+    port: 4000
+    targetPort: 4000
+  env:
+    port: "4000"
+
+worker:
+    replicaCount: 1
+    image:
+      repository: voting-worker
+
+redis:
+  image: redis:7-alpine
+  service:
+    port: 6379
+
+postgres:
+  image: postgres:15-alpine
+  storage: 1Gi
+  service:
+    port: 5432
+  database: postgres
+  username: postgres
+  password: postgres

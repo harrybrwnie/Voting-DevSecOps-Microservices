@@ -1,0 +1,19 @@
+namespace: voting-prod
+
+image:
+  tag: "latest"
+
+vote:
+  replicaCount: 2
+
+result:
+  replicaCount: 2
+
+worker:
+  replicaCount: 1
+
+postgres:
+  storage: 5Gi
+  database: postgres
+  username: postgres
+  password: postgres

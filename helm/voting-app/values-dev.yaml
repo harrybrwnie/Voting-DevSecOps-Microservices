@@ -1,0 +1,19 @@
+namespace: voting-dev
+
+image:
+  tag: "latest"
+
+vote:
+  replicaCount: 1
+
+result:
+  replicatCount: 1
+
+worker:
+  replicaCount: 1
+
+postgres:
+  storage: 1Gi
+  database: postgres
+  username: postgres
+  password: postgres
