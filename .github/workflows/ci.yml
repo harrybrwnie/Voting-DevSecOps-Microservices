@@ -50,6 +50,12 @@ jobs:
           exit-code: "1"
           format: table
 
+      - name: SonarCloud code quality scan
+        uses: SonarSource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+
       - name: Validate docker-compose.yml
         run: docker compose config
 
