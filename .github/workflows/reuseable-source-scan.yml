@@ -10,7 +10,7 @@ permissions:
 jobs:
   trivy-fs:
     name: Trivy Filesystem scan
-    runs-on: ubuntu:latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout source code
