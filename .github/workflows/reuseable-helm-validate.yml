@@ -1,0 +1,25 @@
+name: Reuseable - Helm Validate
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  helm-validate:
+    name: Helm Lint and Template
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Check Helm version
+        run: helm version
+
+      - name: Helm Lint
+        run: helm lint ./helm/voting-app
+
+      - name: Helm Template
+        run: helm template voting-app ./helm/voting-app
