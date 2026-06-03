@@ -1,0 +1,98 @@
+name: Reuseable - Push Images to ECR
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+jobs:
+  push-ecr:
+    name: Build, Scan and Push Images to ECR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Check Docker version
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+          docker login --username AWS --password-stdin \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+      - name: Validate docker-compose.yml
+        run: docker compose config
+
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Scan vote image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: voting-vote:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Scan result image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: voting-result:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Scan worker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: voting-worker:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Tag Docker images for ECR
+        run: |
+          ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+          docker tag voting-vote:local $ECR_REGISTRY/voting-vote:$IMAGE_TAG
+          docker tag voting-result:local $ECR_REGISTRY/voting-result:$IMAGE_TAG
+          docker tag voting-worker:local $ECR_REGISTRY/voting-worker:$IMAGE_TAG
+
+          docker tag voting-vote:local $ECR_REGISTRY/voting-vote:latest
+          docker tag voting-result:local $ECR_REGISTRY/voting-result:latest
+          docker tag voting-worker:local $ECR_REGISTRY/voting-worker:latest
+
+      - name: Push Docker images to ECR
+        run: |
+          ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+          docker push $ECR_REGISTRY/voting-vote:$IMAGE_TAG
+          docker push $ECR_REGISTRY/voting-result:$IMAGE_TAG
+          docker push $ECR_REGISTRY/voting-worker:$IMAGE_TAG
+
+          docker push $ECR_REGISTRY/voting-vote:latest
+          docker push $ECR_REGISTRY/voting-result:latest
+          docker push $ECR_REGISTRY/voting-worker:latest

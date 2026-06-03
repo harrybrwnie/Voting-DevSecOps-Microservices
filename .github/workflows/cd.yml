@@ -1,0 +1,18 @@
+name: CD - Push Images to ECR
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispath:
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+jobs:
+  push-ecr:
+    name: Build, Scan and Push Images to ECR
+    uses: ./.github/workflows/reuseable-push-ecr.yml
+  secrets: inherits
