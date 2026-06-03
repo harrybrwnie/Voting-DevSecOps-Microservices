@@ -15,4 +15,4 @@ jobs:
   push-ecr:
     name: Build, Scan and Push Images to ECR
     uses: ./.github/workflows/reuseable-push-ecr.yml
-  secrets: inherits
+    secrets: inherit
