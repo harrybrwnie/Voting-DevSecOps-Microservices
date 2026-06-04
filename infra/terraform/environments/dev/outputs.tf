@@ -32,3 +32,28 @@ output "nat_gateway_ids" {
   description = "Dev NAT Gateway IDs"
   value       = module.vpc.nat_gateway_ids
 }
+
+output "eks_cluster_name" {
+  description = "Dev EKS cluster name"
+  value       = module.eks.cluster_name
+}
+
+output "eks_cluster_arn" {
+  description = "Dev EKS cluster ARN"
+  value       = module.eks.cluster_arn
+}
+
+output "eks_cluster_endpoint" {
+  description = "Dev EKS cluster endpoint"
+  value       = module.eks.cluster_endpoint
+}
+
+output "eks_node_security_group_id" {
+  description = "Dev EKS node security group ID"
+  value       = module.eks.node_security_group_id
+}
+
+output "eks_oidc_provider_arn" {
+  description = "Dev EKS OIDC provider ARN"
+  value       = module.eks.oidc_provider_arn
+}
