@@ -12,7 +12,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 6.0"
+      version = "~> 5.95"
     }
   }
 }
@@ -41,6 +41,24 @@ module "vpc" {
 
   enable_nat_gateway = var.enable_nat_gateway
   single_nat_gateway = var.single_nat_gateway
+
+  tags = local.common_tags
+}
+
+module "eks" {
+  source = "../../modules/eks"
+
+  cluster_name    = var.eks_cluster_name
+  cluster_version = var.eks_cluster_version
+
+  vpc_id                   = module.vpc.vpc_id
+  subnet_ids               = module.vpc.private_subnet_ids
+  control_plane_subnet_ids = module.vpc.private_subnet_ids
+
+  node_instance_types = var.eks_node_instance_types
+  node_min_size       = var.eks_node_min_size
+  node_max_size       = var.eks_node_max_size
+  node_desired_size   = var.eks_node_desired_size
 
   tags = local.common_tags
 }
