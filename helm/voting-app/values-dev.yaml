@@ -7,9 +7,13 @@ image:
 
 vote:
   replicaCount: 1
+  service:
+    type: LoadBalancer
 
 result:
   replicaCount: 1
+  service:
+    type: LoadBalancer
 
 worker:
   replicaCount: 1
