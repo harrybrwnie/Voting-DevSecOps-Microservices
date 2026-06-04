@@ -17,25 +17,25 @@ permissions:
 jobs:
   secret-scan:
     name: Secret scan
-    uses: ./.github/workflows/reuseable-secret-scan.yml
+    uses: ./.github/workflows/reusable-secret-scan.yml
     secrets: inherit
 
   source-scan:
     name: Source Vulnerability Scan
-    uses: ./.github/workflows/reuseable-source-scan.yml
+    uses: ./.github/workflows/reusable-source-scan.yml
 
   code-quality:
     name: Code Quality Scan
-    uses: ./.github/workflows/reuseable-code-quality.yml
+    uses: ./.github/workflows/reusable-code-quality.yml
     secrets: inherit
 
   docker-ci:
     name: Docker Build, Image Scan and Compose Test
-    uses: ./.github/workflows/reuseable-docker-ci.yml
+    uses: ./.github/workflows/reusable-docker-ci.yml
     needs:
       - secret-scan
       - source-scan
   
   helm-validate:
     name: Helm validate
-    uses: ./.github/workflows/reuseable-helm-validate.yml
+    uses: ./.github/workflows/reusable-helm-validate.yml

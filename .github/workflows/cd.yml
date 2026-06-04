@@ -14,5 +14,5 @@ permissions:
 jobs:
   push-ecr:
     name: Build, Scan and Push Images to ECR
-    uses: ./.github/workflows/reuseable-push-ecr.yml
+    uses: ./.github/workflows/reusable-push-ecr.yml
     secrets: inherit
