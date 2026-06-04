@@ -14,6 +14,16 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.95"
     }
+
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.0, < 3.0"
+    }
+
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.0, < 3.0"
+    }
   }
 }
 
@@ -61,6 +71,14 @@ module "eks" {
   node_desired_size   = var.eks_node_desired_size
 
   tags = local.common_tags
+}
+
+module "argocd" {
+  source = "../../modules/argocd"
+
+  namespace = "argocd"
+
+  depends_on = [module.eks]
 }
 
 module "ecr" {
