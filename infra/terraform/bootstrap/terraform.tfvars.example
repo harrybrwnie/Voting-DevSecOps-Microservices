@@ -1,0 +1,3 @@
+aws_region = "us-east-1"
+
+state_bucket_name = "h4rrybrwnie-voting-tfstate-911540681678-us-east-1"
