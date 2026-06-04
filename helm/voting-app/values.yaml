@@ -41,6 +41,7 @@ redis:
 postgres:
   image: postgres:15-alpine
   storage: 1Gi
+  storageClassName: gp2
   service:
     port: 5432
   database: postgres
