@@ -30,6 +30,10 @@ module "eks" {
     eks-pod-identity-agent = {
       most_recent = true
     }
+
+    aws-ebs-csi-driver = {
+      most_recent = true
+}
   }
 
   eks_managed_node_groups = {
@@ -51,6 +55,10 @@ module "eks" {
       tags = merge(var.tags, {
         Name = "${var.cluster_name}-default-node-group"
       })
+
+      iam_role_additional_policies = {
+        AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+      }
     }
   }
 
