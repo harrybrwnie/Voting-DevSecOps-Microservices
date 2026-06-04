@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: voting-app-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/harrybrwnie/Voting-DevSecOps-Microservices.git
+    targetRevision: main
+    path: helm/voting-app
+    helm:
+      valueFiles:
+        - values-dev.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: voting-dev
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
