@@ -57,3 +57,18 @@ output "eks_oidc_provider_arn" {
   description = "Dev EKS OIDC provider ARN"
   value       = module.eks.oidc_provider_arn
 }
+
+output "argocd_namespace" {
+  description = "Argo CD namespace"
+  value       = module.argocd.namespace
+}
+
+output "argocd_release_name" {
+  description = "Argo CD Helm release name"
+  value       = module.argocd.release_name
+}
+
+output "argocd_release_status" {
+  description = "Argo CD Helm release status"
+  value       = module.argocd.release_status
+}
