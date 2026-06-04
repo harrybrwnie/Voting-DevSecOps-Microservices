@@ -1,0 +1,8 @@
+aws_region = "us-east-1"
+
+github_owner = "harrybrwnie"
+github_repo  = "Voting-DevSecOps-Microservices"
+
+github_actions_role_name = "github-actions-voting-devsecops-role"
+
+ecr_force_delete = false
