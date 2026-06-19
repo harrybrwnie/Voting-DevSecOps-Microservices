@@ -1,0 +1,75 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    networks:
+      - voting-network
+    depends_on:
+      - vote
+      - result
+      - redis-exporter
+      - postgres-exporter
+      - cadvisor
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - voting-network
+    depends_on:
+      - prometheus
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    container_name: redis-exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    networks:
+      - voting-network
+    depends_on:
+      - redis
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    container_name: postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@db:5432/postgres?sslmode=disable"
+    networks:
+      - voting-network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - voting-network
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, make_response, g
 from redis import Redis
+from prometheus_flask_exporter import PrometheusMetrics
+from prometheus_client import Counter
 import os
 import socket
 import random
@@ -11,6 +13,13 @@ option_b = os.getenv('OPTION_B', "Dogs")
 hostname = socket.gethostname()
 
 app = Flask(__name__)
+metrics = PrometheusMetrics(app)
+
+vote_counter = Counter(
+    'vote_submissions_total',
+    'Total number of submitted votes',
+    ['option']
+)
 
 gunicorn_error_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers.extend(gunicorn_error_logger.handlers)
@@ -32,6 +41,7 @@ def hello():
     if request.method == 'POST':
         redis = get_redis()
         vote = request.form['vote']
+        vote_counter.labels(option=vote).inc()
         app.logger.info('Received vote for %s', vote)
         data = json.dumps({'voter_id': voter_id, 'vote': vote})
         redis.rpush('votes', data)

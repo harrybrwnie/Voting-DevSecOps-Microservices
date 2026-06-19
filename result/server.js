@@ -1,3 +1,5 @@
+const client = require('prom-client');
+
 var express = require('express'),
     async = require('async'),
     { Pool } = require('pg'),
@@ -64,9 +66,41 @@ function collectVotesFromResult(result) {
   return votes;
 }
 
+const register = new client.Registry();
+
+client.collectDefaultMetrics({
+  register,
+  prefix: 'result_'
+});
+
+const httpRequestCounter = new client.Counter({
+  name: 'result_http_requests_total',
+  help: 'Total number of HTTP requests to result service',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+register.registerMetric(httpRequestCounter);
+
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    httpRequestCounter.inc({
+      method: req.method,
+      route: req.path,
+      status_code: res.statusCode
+    });
+  });
+  next();
+});
+
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/views'));
+
+
+app.get('/metrics', async function (req, res) {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
 
 app.get('/', function (req, res) {
   res.sendFile(path.resolve(__dirname + '/views/index.html'));
