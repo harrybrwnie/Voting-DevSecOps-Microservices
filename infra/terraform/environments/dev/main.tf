@@ -14,16 +14,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.95"
     }
-
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = ">= 2.0, < 3.0"
-    }
-
-    helm = {
-      source  = "hashicorp/helm"
-      version = ">= 2.0, < 3.0"
-    }
   }
 }
 
@@ -73,14 +63,6 @@ module "eks" {
   tags = local.common_tags
 }
 
-module "argocd" {
-  source = "../../modules/argocd"
-
-  namespace = "argocd"
-
-  depends_on = [module.eks]
-}
-
 module "ecr" {
   source = "../../modules/ecr"
 
@@ -95,6 +77,8 @@ module "ecr" {
 }
 
 module "github_oidc" {
+  count = var.manage_github_oidc ? 1 : 0
+
   source = "../../modules/github-oidc"
 
   github_owner = var.github_owner

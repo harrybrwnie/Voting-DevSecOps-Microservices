@@ -5,7 +5,7 @@ output "ecr_repository_urls" {
 
 output "github_actions_role_arn" {
   description = "GitHub Actions IAM Role ARN"
-  value       = module.github_oidc.role_arn
+  value       = var.manage_github_oidc ? module.github_oidc[0].role_arn : null
 }
 
 output "vpc_id" {
@@ -56,19 +56,4 @@ output "eks_node_security_group_id" {
 output "eks_oidc_provider_arn" {
   description = "Dev EKS OIDC provider ARN"
   value       = module.eks.oidc_provider_arn
-}
-
-output "argocd_namespace" {
-  description = "Argo CD namespace"
-  value       = module.argocd.namespace
-}
-
-output "argocd_release_name" {
-  description = "Argo CD Helm release name"
-  value       = module.argocd.release_name
-}
-
-output "argocd_release_status" {
-  description = "Argo CD Helm release status"
-  value       = module.argocd.release_status
 }

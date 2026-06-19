@@ -1,0 +1,78 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 86.3.1
+    helm:
+      releaseName: monitoring
+      values: |
+        fullnameOverride: monitoring
+
+        grafana:
+          enabled: true
+          admin:
+            existingSecret: grafana-admin-credentials
+            userKey: admin-user
+            passwordKey: admin-password
+          service:
+            type: ClusterIP
+          ingress:
+            enabled: false
+          persistence:
+            enabled: false
+
+        prometheus:
+          service:
+            type: ClusterIP
+          prometheusSpec:
+            retention: 7d
+            scrapeInterval: 30s
+            evaluationInterval: 30s
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            storageSpec: {}
+
+        alertmanager:
+          service:
+            type: ClusterIP
+          alertmanagerSpec:
+            retention: 120h
+            storage: {}
+
+        prometheusOperator:
+          admissionWebhooks:
+            patch:
+              enabled: true
+
+        defaultRules:
+          create: true
+
+        kubeStateMetrics:
+          enabled: true
+
+        nodeExporter:
+          enabled: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true

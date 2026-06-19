@@ -18,6 +18,12 @@ variable "github_actions_role_name" {
   type        = string
 }
 
+variable "manage_github_oidc" {
+  description = "Whether Terraform should manage the GitHub Actions OIDC provider and ECR push role. Keep false when these were created manually."
+  type        = bool
+  default     = false
+}
+
 variable "ecr_force_delete" {
   description = "Whether to force delete ECR repositories"
   type        = bool
