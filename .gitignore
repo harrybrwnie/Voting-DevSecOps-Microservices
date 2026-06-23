@@ -67,3 +67,5 @@ override.tf.json
 AGENTS.md
 docs/
 .prompt
+Context/
+github-actions-trust-policy.json
