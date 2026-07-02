@@ -14,11 +14,44 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.95"
     }
+
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.0, < 3.0"
+    }
+
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.0, < 3.0"
+    }
+
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.7"
+    }
   }
 }
 
 provider "aws" {
   region = var.aws_region
+}
+
+data "aws_eks_cluster_auth" "dev" {
+  name = module.eks.cluster_name
+}
+
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.dev.token
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    token                  = data.aws_eks_cluster_auth.dev.token
+  }
 }
 
 locals {
@@ -74,6 +107,54 @@ module "ecr" {
 
   force_delete = var.ecr_force_delete
   tags         = local.common_tags
+}
+
+module "argocd" {
+  source = "../../modules/argocd"
+
+  namespace     = var.argocd_namespace
+  chart_version = var.argocd_chart_version
+
+  depends_on = [module.eks]
+}
+
+resource "kubernetes_namespace" "monitoring" {
+  metadata {
+    name = var.monitoring_namespace
+
+    labels = {
+      "app.kubernetes.io/name"       = "monitoring"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+
+  depends_on = [module.eks]
+}
+
+resource "random_password" "grafana_admin" {
+  length           = 24
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "kubernetes_secret" "grafana_admin" {
+  metadata {
+    name      = var.grafana_admin_secret_name
+    namespace = kubernetes_namespace.monitoring.metadata[0].name
+
+    labels = {
+      "app.kubernetes.io/name"       = "grafana"
+      "app.kubernetes.io/component"  = "admin-credentials"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+
+  type = "Opaque"
+
+  data = {
+    admin-user     = var.grafana_admin_user
+    admin-password = random_password.grafana_admin.result
+  }
 }
 
 module "github_oidc" {
