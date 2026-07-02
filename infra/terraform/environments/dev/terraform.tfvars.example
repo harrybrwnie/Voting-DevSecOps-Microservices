@@ -38,3 +38,10 @@ eks_node_instance_types = [
 eks_node_min_size     = 1
 eks_node_max_size     = 3
 eks_node_desired_size = 2
+
+argocd_namespace     = "argocd"
+argocd_chart_version = null
+
+monitoring_namespace      = "monitoring"
+grafana_admin_secret_name = "grafana-admin-credentials"
+grafana_admin_user        = "admin"

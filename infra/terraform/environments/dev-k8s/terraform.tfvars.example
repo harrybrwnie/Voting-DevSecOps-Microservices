@@ -1,8 +1,0 @@
-aws_region = "us-east-1"
-
-argocd_namespace     = "argocd"
-argocd_chart_version = null
-
-monitoring_namespace       = "monitoring"
-grafana_admin_secret_name  = "grafana-admin-credentials"
-grafana_admin_user         = "admin"
