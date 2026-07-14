@@ -4,7 +4,18 @@ on:
   push:
     branches:
       - main
+    paths:
+      - vote/**
+      - result/**
+      - worker/**
+      - docker-compose.yml
+      - .github/workflows/cd.yml
+      - .github/workflows/reusable-push-ecr.yml
   workflow_dispatch:
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -16,3 +27,70 @@ jobs:
     name: Build, Scan and Push Images to ECR
     uses: ./.github/workflows/reusable-push-ecr.yml
     secrets: inherit
+
+  promote-dev:
+    name: Promote image to dev
+    needs: push-ecr
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create promotion bot token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ vars.PROMOTION_APP_ID }}
+          private-key: ${{ secrets.PROMOTION_APP_PRIVATE_KEY }}
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Update dev image tag
+        id: update-tag
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          if grep -Fqx "  tag: \"${IMAGE_TAG}\"" helm/voting-app/values-dev.yaml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          sed -i -E "s/^  tag: \"[0-9a-f]+\"$/  tag: \"${IMAGE_TAG}\"/" helm/voting-app/values-dev.yaml
+          grep -Fqx "  tag: \"${IMAGE_TAG}\"" helm/voting-app/values-dev.yaml
+          helm lint helm/voting-app --values helm/voting-app/values-dev.yaml
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create promotion pull request
+        if: steps.update-tag.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          BRANCH="automation/promote-dev"
+
+          git config user.name "voting-promotion-bot[bot]"
+          git config user.email "voting-promotion-bot[bot]@users.noreply.github.com"
+          git switch -C "${BRANCH}"
+          git add helm/voting-app/values-dev.yaml
+          git commit -m "Promote dev image to ${IMAGE_TAG}"
+          git push --force --set-upstream origin "${BRANCH}"
+
+          PR_URL=$(gh pr list \
+            --base main \
+            --head "${BRANCH}" \
+            --state open \
+            --json url \
+            --jq '.[0].url')
+
+          if [ -z "${PR_URL}" ]; then
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "${BRANCH}" \
+              --title "Promote dev image to ${IMAGE_TAG}" \
+              --body "Automated promotion after the image build and security scans passed.")
+          fi
+
+          gh pr merge "${PR_URL}" --auto --squash --delete-branch

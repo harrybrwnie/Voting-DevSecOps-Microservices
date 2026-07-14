@@ -30,6 +30,28 @@ variable "ecr_force_delete" {
   default     = false
 }
 
+variable "ecr_image_tag_mutability" {
+  description = "Whether ECR image tags can be overwritten"
+  type        = string
+  default     = "IMMUTABLE"
+
+  validation {
+    condition     = contains(["IMMUTABLE", "MUTABLE"], var.ecr_image_tag_mutability)
+    error_message = "ecr_image_tag_mutability must be IMMUTABLE or MUTABLE."
+  }
+}
+
+variable "ecr_max_image_count" {
+  description = "Maximum number of images retained in each ECR repository"
+  type        = number
+  default     = 20
+
+  validation {
+    condition     = var.ecr_max_image_count >= 3
+    error_message = "ecr_max_image_count must be at least 3."
+  }
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the dev VPC"
   type        = string
@@ -102,6 +124,30 @@ variable "argocd_chart_version" {
   description = "Argo CD Helm chart version. Null means latest available chart version."
   type        = string
   default     = null
+}
+
+variable "voting_namespace" {
+  description = "Namespace where the voting application will run"
+  type        = string
+  default     = "voting-dev"
+}
+
+variable "postgres_secret_name" {
+  description = "Kubernetes Secret containing PostgreSQL credentials"
+  type        = string
+  default     = "postgres-credentials"
+}
+
+variable "postgres_user" {
+  description = "PostgreSQL username"
+  type        = string
+  default     = "postgres"
+}
+
+variable "postgres_database" {
+  description = "PostgreSQL database name"
+  type        = string
+  default     = "postgres"
 }
 
 variable "monitoring_namespace" {

@@ -5,7 +5,7 @@ imagePullSecrets:
 
 image:
   registry: "911540681678.dkr.ecr.us-east-1.amazonaws.com"
-  tag: "latest"
+  tag: "ab5d39a"
   pullPolicy: IfNotPresent
 
 vote:
@@ -42,8 +42,6 @@ postgres:
   image: postgres:15-alpine
   storage: 1Gi
   storageClassName: gp2
+  existingSecret: postgres-credentials
   service:
     port: 5432
-  database: postgres
-  username: postgres
-  password: postgres
