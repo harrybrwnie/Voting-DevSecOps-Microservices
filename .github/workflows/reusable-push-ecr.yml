@@ -23,7 +23,10 @@ jobs:
           docker compose version
 
       - name: Set image tag
-        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      - name: Generate ephemeral build database password
+        run: echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -73,26 +76,20 @@ jobs:
           exit-code: "1"
           format: table
 
-      - name: Tag Docker images for ECR
+      - name: Push immutable images to ECR
         run: |
           ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
-          docker tag voting-vote:local $ECR_REGISTRY/voting-vote:$IMAGE_TAG
-          docker tag voting-result:local $ECR_REGISTRY/voting-result:$IMAGE_TAG
-          docker tag voting-worker:local $ECR_REGISTRY/voting-worker:$IMAGE_TAG
+          for SERVICE in vote result worker; do
+            REPOSITORY="voting-${SERVICE}"
 
-          docker tag voting-vote:local $ECR_REGISTRY/voting-vote:latest
-          docker tag voting-result:local $ECR_REGISTRY/voting-result:latest
-          docker tag voting-worker:local $ECR_REGISTRY/voting-worker:latest
+            if aws ecr describe-images \
+              --repository-name "${REPOSITORY}" \
+              --image-ids imageTag="${IMAGE_TAG}" >/dev/null 2>&1; then
+              echo "${REPOSITORY}:${IMAGE_TAG} already exists; skipping push."
+              continue
+            fi
 
-      - name: Push Docker images to ECR
-        run: |
-          ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-
-          docker push $ECR_REGISTRY/voting-vote:$IMAGE_TAG
-          docker push $ECR_REGISTRY/voting-result:$IMAGE_TAG
-          docker push $ECR_REGISTRY/voting-worker:$IMAGE_TAG
-
-          docker push $ECR_REGISTRY/voting-vote:latest
-          docker push $ECR_REGISTRY/voting-result:latest
-          docker push $ECR_REGISTRY/voting-worker:latest
+            docker tag "voting-${SERVICE}:local" "${ECR_REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+            docker push "${ECR_REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+          done

@@ -18,3 +18,6 @@ spec:
         - name: worker
           image: "{{ .Values.image.registry }}/{{ .Values.worker.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ required "postgres.existingSecret is required" .Values.postgres.existingSecret }}

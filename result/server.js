@@ -11,6 +11,14 @@ var express = require('express'),
 
 var port = process.env.PORT || 4000;
 
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
+}
+
 io.on('connection', function (socket) {
 
   socket.emit('message', { text : 'Welcome!' });
@@ -21,7 +29,10 @@ io.on('connection', function (socket) {
 });
 
 var pool = new Pool({
-  connectionString: 'postgres://postgres:postgres@db/postgres'
+  host: requiredEnv('POSTGRES_HOST'),
+  user: requiredEnv('POSTGRES_USER'),
+  password: requiredEnv('POSTGRES_PASSWORD'),
+  database: requiredEnv('POSTGRES_DB')
 });
 
 async.retry(

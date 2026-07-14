@@ -3,17 +3,17 @@ namespace: voting-dev
 imagePullSecrets: []
 
 image:
-  tag: "latest"
+  tag: "ab5d39a"
 
 vote:
   replicaCount: 1
   service:
-    type: LoadBalancer
+    type: ClusterIP
 
 result:
   replicaCount: 1
   service:
-    type: LoadBalancer
+    type: ClusterIP
 
 worker:
   replicaCount: 1
@@ -21,6 +21,3 @@ worker:
 postgres:
   storage: 1Gi
   storageClassName: gp2
-  database: postgres
-  username: postgres
-  password: postgres

@@ -79,6 +79,16 @@ output "argocd_release_status" {
   value       = module.argocd.release_status
 }
 
+output "voting_namespace" {
+  description = "Voting application namespace"
+  value       = kubernetes_namespace.voting.metadata[0].name
+}
+
+output "postgres_secret_name" {
+  description = "Kubernetes Secret containing PostgreSQL credentials"
+  value       = kubernetes_secret.postgres.metadata[0].name
+}
+
 output "monitoring_namespace" {
   description = "Monitoring namespace"
   value       = kubernetes_namespace.monitoring.metadata[0].name

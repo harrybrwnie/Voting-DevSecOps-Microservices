@@ -16,7 +16,15 @@ namespace Worker
         {
             try
             {
-                var pgsql = OpenDbConnection("Server=db;Username=postgres;Password=postgres;");
+                var connectionString = new NpgsqlConnectionStringBuilder
+                {
+                    Host = GetRequiredEnvironmentVariable("POSTGRES_HOST"),
+                    Username = GetRequiredEnvironmentVariable("POSTGRES_USER"),
+                    Password = GetRequiredEnvironmentVariable("POSTGRES_PASSWORD"),
+                    Database = GetRequiredEnvironmentVariable("POSTGRES_DB")
+                }.ConnectionString;
+
+                var pgsql = OpenDbConnection(connectionString);
                 var redisConn = OpenRedisConnection("redis");
                 var redis = redisConn.GetDatabase();
 
@@ -46,7 +54,7 @@ namespace Worker
                         if (!pgsql.State.Equals(System.Data.ConnectionState.Open))
                         {
                             Console.WriteLine("Reconnecting DB");
-                            pgsql = OpenDbConnection("Server=db;Username=postgres;Password=postgres;");
+                            pgsql = OpenDbConnection(connectionString);
                         }
                         else
                         { // Normal +1 vote requested
@@ -64,6 +72,17 @@ namespace Worker
                 Console.Error.WriteLine(ex.ToString());
                 return 1;
             }
+        }
+
+        private static string GetRequiredEnvironmentVariable(string name)
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new InvalidOperationException($"{name} is required");
+            }
+
+            return value;
         }
 
         private static NpgsqlConnection OpenDbConnection(string connectionString)

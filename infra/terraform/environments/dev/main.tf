@@ -105,8 +105,10 @@ module "ecr" {
     "voting-worker"
   ]
 
-  force_delete = var.ecr_force_delete
-  tags         = local.common_tags
+  force_delete         = var.ecr_force_delete
+  image_tag_mutability = var.ecr_image_tag_mutability
+  max_image_count      = var.ecr_max_image_count
+  tags                 = local.common_tags
 }
 
 module "argocd" {
@@ -129,6 +131,47 @@ resource "kubernetes_namespace" "monitoring" {
   }
 
   depends_on = [module.eks]
+}
+
+resource "kubernetes_namespace" "voting" {
+  metadata {
+    name = var.voting_namespace
+
+    labels = {
+      "app.kubernetes.io/name"       = "voting-app"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+
+  depends_on = [module.eks]
+}
+
+resource "random_password" "postgres" {
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+"
+}
+
+resource "kubernetes_secret" "postgres" {
+  metadata {
+    name      = var.postgres_secret_name
+    namespace = kubernetes_namespace.voting.metadata[0].name
+
+    labels = {
+      "app.kubernetes.io/name"       = "postgres"
+      "app.kubernetes.io/component"  = "database"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+
+  type = "Opaque"
+
+  data = {
+    POSTGRES_HOST     = "db"
+    POSTGRES_USER     = var.postgres_user
+    POSTGRES_PASSWORD = random_password.postgres.result
+    POSTGRES_DB       = var.postgres_database
+  }
 }
 
 resource "random_password" "grafana_admin" {

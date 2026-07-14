@@ -2,10 +2,10 @@ services:
   db:
     image: postgres:15-alpine
     container_name: db
-    environment: 
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_DB: "postgres"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     volumes:
       - db-data:/var/lib/postgresql/data
     networks:
@@ -37,7 +37,11 @@ services:
     ports:
       - "5001:4000"
     environment:
-      - PORT=4000
+      PORT: 4000
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     networks:
       - voting-network
     depends_on:
@@ -47,6 +51,11 @@ services:
     image: voting-worker:local
     build: ./worker
     container_name: worker
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     networks:
       - voting-network
     depends_on:

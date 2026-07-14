@@ -24,7 +24,7 @@ spec:
               value: /var/lib/postgresql/data/pgdata
           envFrom:
             - secretRef:
-                name: postgres-secret
+                name: {{ required "postgres.existingSecret is required" .Values.postgres.existingSecret }}
           volumeMounts:
             - name: db-data
               mountPath: /var/lib/postgresql/data
