@@ -1,17 +1,18 @@
 # ===== Stage 1: Build =====
-FROM node:20-alpine AS build
+FROM node:24.18.0-alpine3.23 AS build
 WORKDIR /app
 COPY package*.json ./
 ARG NEXUS_URL=https://registry.npmjs.org/
-RUN npm config set strict-ssl false && \
-    npm ci --registry=${NEXUS_URL} --only=production && \
+RUN npm ci --registry=${NEXUS_URL} --omit=dev && \
     npm cache clean --force
 
 # ===== Stage 2: Production image =====
-FROM node:20-alpine
+FROM node:24.18.0-alpine3.23
 RUN apk update && apk upgrade --no-cache && \
-    npm install -g npm@latest && \
-    rm -rf /var/cache/apk/*
+    rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx \
+           /var/cache/apk/*
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY server.js .
