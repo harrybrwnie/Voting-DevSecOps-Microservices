@@ -157,6 +157,93 @@ resource "kubernetes_secret" "grafana_admin" {
   }
 }
 
+resource "helm_release" "monitoring" {
+  name       = var.monitoring_release_name
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "kube-prometheus-stack"
+  version    = var.monitoring_chart_version
+  namespace  = kubernetes_namespace.monitoring.metadata[0].name
+
+  create_namespace = false
+  atomic           = true
+  cleanup_on_fail  = true
+  wait             = true
+  timeout          = 900
+
+  values = [
+    yamlencode({
+      fullnameOverride = "monitoring"
+
+      grafana = {
+        enabled = true
+        admin = {
+          existingSecret = kubernetes_secret.grafana_admin.metadata[0].name
+          userKey        = "admin-user"
+          passwordKey    = "admin-password" # gitleaks:allow - Kubernetes Secret key name, not a credential.
+        }
+        service = {
+          type = "ClusterIP"
+        }
+        ingress = {
+          enabled = false
+        }
+        persistence = {
+          enabled = false
+        }
+      }
+
+      prometheus = {
+        service = {
+          type = "ClusterIP"
+        }
+        prometheusSpec = {
+          retention                               = "7d"
+          scrapeInterval                          = "30s"
+          evaluationInterval                      = "30s"
+          serviceMonitorSelectorNilUsesHelmValues = false
+          podMonitorSelectorNilUsesHelmValues     = false
+          ruleSelectorNilUsesHelmValues           = false
+          storageSpec                             = {}
+        }
+      }
+
+      alertmanager = {
+        service = {
+          type = "ClusterIP"
+        }
+        alertmanagerSpec = {
+          retention = "120h"
+          storage   = {}
+        }
+      }
+
+      prometheusOperator = {
+        admissionWebhooks = {
+          patch = {
+            enabled = true
+          }
+        }
+      }
+
+      defaultRules = {
+        create = true
+      }
+
+      kubeStateMetrics = {
+        enabled = true
+      }
+
+      nodeExporter = {
+        enabled = true
+      }
+    })
+  ]
+
+  depends_on = [
+    kubernetes_secret.grafana_admin
+  ]
+}
+
 module "github_oidc" {
   count = var.manage_github_oidc ? 1 : 0
 

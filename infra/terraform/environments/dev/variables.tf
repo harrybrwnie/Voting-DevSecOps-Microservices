@@ -110,6 +110,18 @@ variable "monitoring_namespace" {
   default     = "monitoring"
 }
 
+variable "monitoring_release_name" {
+  description = "Helm release name for kube-prometheus-stack"
+  type        = string
+  default     = "monitoring"
+}
+
+variable "monitoring_chart_version" {
+  description = "kube-prometheus-stack Helm chart version"
+  type        = string
+  default     = "86.3.1"
+}
+
 variable "grafana_admin_secret_name" {
   description = "Kubernetes Secret name that stores Grafana admin credentials"
   type        = string
