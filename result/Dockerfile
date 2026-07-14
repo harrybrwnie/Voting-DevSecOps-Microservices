@@ -9,7 +9,10 @@ RUN npm ci --registry=${NEXUS_URL} --omit=dev && \
 # ===== Stage 2: Production image =====
 FROM node:24.18.0-alpine3.23
 RUN apk update && apk upgrade --no-cache && \
-    rm -rf /var/cache/apk/*
+    rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx \
+           /var/cache/apk/*
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY server.js .
