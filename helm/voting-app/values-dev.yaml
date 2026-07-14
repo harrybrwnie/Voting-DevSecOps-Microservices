@@ -3,7 +3,7 @@ namespace: voting-dev
 imagePullSecrets: []
 
 image:
-  tag: "ab5d39a"
+  tag: "1b61f9d21134d7ceb8c15e652b2c586336612c5f"
 
 vote:
   replicaCount: 1
