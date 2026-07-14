@@ -84,6 +84,16 @@ output "monitoring_namespace" {
   value       = kubernetes_namespace.monitoring.metadata[0].name
 }
 
+output "monitoring_release_name" {
+  description = "kube-prometheus-stack Helm release name"
+  value       = helm_release.monitoring.name
+}
+
+output "monitoring_release_status" {
+  description = "kube-prometheus-stack Helm release status"
+  value       = helm_release.monitoring.status
+}
+
 output "grafana_admin_secret_name" {
   description = "Kubernetes Secret containing Grafana admin credentials"
   value       = kubernetes_secret.grafana_admin.metadata[0].name
