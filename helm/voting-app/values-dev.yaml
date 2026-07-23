@@ -1,23 +1,23 @@
 namespace: voting-dev
 imagePullSecrets: []
 release:
-  id: 1cf80e102deb2df691b42c9592e41a4a268e4b21
+  id: f348550ddc30981a6e6379b601846707c90ae539
 vote:
   replicaCount: 1
   image:
-    digest: sha256:ffaf957eceac4ae870bc48094b48a4ef68126f653ce16932dfd8ff54271efaee
+    digest: sha256:878a953305caf9a18ef67bcec6c5e536df4fc8aaba73ab2ae5cd4e9758c99cb3
   service:
     type: ClusterIP
 result:
   replicaCount: 1
   image:
-    digest: sha256:744375ae626986613f91ea48bea6c681e69eae2933b7e51136e31d74a19c4329
+    digest: sha256:bdb2d942eb296de25e9a26837c071b4bd59394a2b5a9f31118d2122e61fc441d
   service:
     type: ClusterIP
 worker:
   replicaCount: 1
   image:
-    digest: sha256:d46cfdbf53c8955f81e4446b1106f632bcaebea09a056472138c8984512dbc5f
+    digest: sha256:2e0f5cc9b737439a3b07f5f40ae8150899d5dc36eb18cd27bae2b3737376d882
 postgres:
   storage: 1Gi
   storageClassName: gp2
