@@ -1,0 +1,472 @@
+name: Release - Build Once and Promote Dev
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - vote/**
+      - result/**
+      - worker/**
+      - docker-compose.yml
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, sign and register release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_RELEASE_ROLE_ARN: ${{ vars.AWS_RELEASE_ROLE_ARN }}
+      SSM_RELEASES_PATH: ${{ vars.SSM_RELEASES_PATH }}
+      RELEASE_RETENTION_COUNT: "20"
+      COSIGN_CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/heads/main
+      COSIGN_OIDC_ISSUER: https://token.actions.githubusercontent.com
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b
+        with:
+          ruby-version: "3.3"
+
+      - name: Validate release configuration
+        id: release
+        env:
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          [[ "${RELEASE_ID}" =~ ^[0-9a-f]{40}$ ]]
+          test -n "${AWS_ACCOUNT_ID}"
+          test -n "${AWS_REGION}"
+          test -n "${AWS_RELEASE_ROLE_ARN}"
+          test -n "${SSM_RELEASES_PATH}"
+          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_ID=${RELEASE_ID}" >> "$GITHUB_ENV"
+
+      - name: Configure release AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_RELEASE_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region "${AWS_REGION}" |
+            docker login --username AWS --password-stdin \
+              "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62
+        with:
+          cosign-release: v3.0.5
+
+      - name: Inspect release registry
+        id: registry
+        run: |
+          MANIFEST_PARAMETER="${SSM_RELEASES_PATH}/${RELEASE_ID}/manifest"
+          if aws ssm get-parameter \
+            --name "${MANIFEST_PARAMETER}" \
+            --query Parameter.Value \
+            --output text > /tmp/release-manifest.json 2>/dev/null; then
+            echo "existing=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${RELEASE_ID} already exists; build and push will be skipped."
+            exit 0
+          fi
+
+          EXISTING_TAGS=0
+          for SERVICE in vote result worker; do
+            if aws ecr describe-images \
+              --repository-name "voting-${SERVICE}" \
+              --image-ids "imageTag=${RELEASE_ID}" >/dev/null 2>&1; then
+              EXISTING_TAGS=$((EXISTING_TAGS + 1))
+            fi
+          done
+
+          if [ "${EXISTING_TAGS}" -ne 0 ]; then
+            echo "Partial release detected: ${EXISTING_TAGS}/3 SHA tags exist without an immutable manifest." >&2
+            echo "Delete all three tags for ${RELEASE_ID} before rerunning; never repair a mixed release automatically." >&2
+            exit 1
+          fi
+
+          aws ssm get-parameters-by-path \
+            --path "${SSM_RELEASES_PATH}" \
+            --recursive > /tmp/releases.json
+
+          DEV_POINTER=$(aws ssm get-parameter \
+            --name "/voting/environments/dev/current-release" \
+            --query Parameter.Value --output text 2>/dev/null || true)
+          PROD_POINTER=$(aws ssm get-parameter \
+            --name "/voting/environments/prod/current-release" \
+            --query Parameter.Value --output text 2>/dev/null || true)
+
+          python3 scripts/release-retention.py \
+            /tmp/releases.json \
+            --keep "${RELEASE_RETENTION_COUNT}" \
+            --incoming-release "${RELEASE_ID}" \
+            --protected-release "${DEV_POINTER}" \
+            --protected-release "${PROD_POINTER}" > /tmp/release-gc-parameters.txt
+
+          echo "existing=false" >> "$GITHUB_OUTPUT"
+
+      - name: Generate ephemeral build database password
+        if: steps.registry.outputs.existing == 'false'
+        run: echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+
+      - name: Validate Docker Compose
+        if: steps.registry.outputs.existing == 'false'
+        run: docker compose config
+
+      - name: Build release images once
+        if: steps.registry.outputs.existing == 'false'
+        run: docker compose build
+
+      - name: Scan vote image
+        if: steps.registry.outputs.existing == 'false'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: voting-vote:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Scan result image
+        if: steps.registry.outputs.existing == 'false'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: voting-result:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Scan worker image
+        if: steps.registry.outputs.existing == 'false'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: voting-worker:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Push immutable SHA tags
+        if: steps.registry.outputs.existing == 'false'
+        run: |
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          for SERVICE in vote result worker; do
+            IMAGE_URI="${ECR_REGISTRY}/voting-${SERVICE}"
+            docker tag "voting-${SERVICE}:local" "${IMAGE_URI}:${RELEASE_ID}"
+            docker push "${IMAGE_URI}:${RELEASE_ID}"
+          done
+
+      - name: Resolve digests and create manifest
+        if: steps.registry.outputs.existing == 'false'
+        env:
+          WORKFLOW_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          resolve_digest() {
+            aws ecr describe-images \
+              --repository-name "voting-$1" \
+              --image-ids "imageTag=${RELEASE_ID}" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text
+          }
+
+          DIGEST_VOTE=$(resolve_digest vote)
+          DIGEST_RESULT=$(resolve_digest result)
+          DIGEST_WORKER=$(resolve_digest worker)
+          export DIGEST_VOTE DIGEST_RESULT DIGEST_WORKER
+
+          [[ "${DIGEST_VOTE}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${DIGEST_RESULT}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${DIGEST_WORKER}" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          registry = f"{os.environ['AWS_ACCOUNT_ID']}.dkr.ecr.{os.environ['AWS_REGION']}.amazonaws.com"
+          images = {}
+          for service in ("vote", "result", "worker"):
+              repository = f"voting-{service}"
+              uri = f"{registry}/{repository}"
+              digest = os.environ[f"DIGEST_{service.upper()}"]
+              images[service] = {
+                  "repository": repository,
+                  "uri": uri,
+                  "digest": digest,
+                  "reference": f"{uri}@{digest}",
+              }
+
+          manifest = {
+              "schema_version": 1,
+              "release_id": os.environ["RELEASE_ID"],
+              "commit_sha": os.environ["RELEASE_ID"],
+              "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "workflow_url": os.environ["WORKFLOW_URL"],
+              "images": images,
+          }
+          with open("/tmp/release-manifest.json", "w", encoding="utf-8") as stream:
+              json.dump(manifest, stream, indent=2)
+              stream.write("\n")
+          PY
+
+          ruby scripts/validate-release-manifest.rb /tmp/release-manifest.json "${RELEASE_ID}"
+
+      - name: Sign release images by digest
+        if: steps.registry.outputs.existing == 'false'
+        run: |
+          python3 -c 'import json; print("\n".join(v["reference"] for v in json.load(open("/tmp/release-manifest.json"))["images"].values()))' |
+          while IFS= read -r REFERENCE; do
+            cosign sign --yes "${REFERENCE}"
+          done
+
+      - name: Verify release signatures
+        run: |
+          if [ ! -s /tmp/release-manifest.json ]; then
+            aws ssm get-parameter \
+              --name "${SSM_RELEASES_PATH}/${RELEASE_ID}/manifest" \
+              --query Parameter.Value \
+              --output text > /tmp/release-manifest.json
+          fi
+
+          ruby scripts/validate-release-manifest.rb /tmp/release-manifest.json "${RELEASE_ID}"
+          python3 -c 'import json; print("\n".join(v["reference"] for v in json.load(open("/tmp/release-manifest.json"))["images"].values()))' |
+          while IFS= read -r REFERENCE; do
+            cosign verify \
+              --certificate-identity "${COSIGN_CERTIFICATE_IDENTITY}" \
+              --certificate-oidc-issuer "${COSIGN_OIDC_ISSUER}" \
+              "${REFERENCE}" >/dev/null
+          done
+
+      - name: Publish immutable release manifest
+        if: steps.registry.outputs.existing == 'false'
+        run: |
+          aws ssm put-parameter \
+            --name "${SSM_RELEASES_PATH}/${RELEASE_ID}/manifest" \
+            --type String \
+            --value "$(cat /tmp/release-manifest.json)"
+
+          while IFS= read -r PARAMETER; do
+            [ -z "${PARAMETER}" ] && continue
+            if aws ssm get-parameter --name "${PARAMETER}" >/dev/null 2>&1; then
+              aws ssm delete-parameter --name "${PARAMETER}"
+            fi
+          done < /tmp/release-gc-parameters.txt
+
+  promote-dev:
+    name: Promote and verify dev
+    needs: release
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+    concurrency:
+      group: promote-dev
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+      SSM_RELEASES_PATH: ${{ vars.SSM_RELEASES_PATH }}
+      SSM_ENV_PATH: ${{ vars.SSM_ENV_PATH }}
+      HELM_VALUES_FILE: ${{ vars.HELM_VALUES_FILE }}
+      COSIGN_CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/heads/main
+      COSIGN_OIDC_ISSUER: https://token.actions.githubusercontent.com
+      RELEASE_ID: ${{ needs.release.outputs.release_id }}
+
+    steps:
+      - name: Create promotion bot token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ vars.PROMOTION_APP_ID }}
+          private-key: ${{ secrets.PROMOTION_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b
+        with:
+          ruby-version: "3.3"
+
+      - name: Configure dev AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62
+        with:
+          cosign-release: v3.0.5
+
+      - name: Read and verify release
+        run: |
+          aws ecr get-login-password --region "${AWS_REGION}" |
+            cosign login --username AWS --password-stdin \
+              "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ssm get-parameter \
+            --name "${SSM_RELEASES_PATH}/${RELEASE_ID}/manifest" \
+            --query Parameter.Value \
+            --output text > /tmp/release-manifest.json
+          ruby scripts/validate-release-manifest.rb /tmp/release-manifest.json "${RELEASE_ID}"
+
+          python3 -c 'import json; print("\n".join(v["reference"] for v in json.load(open("/tmp/release-manifest.json"))["images"].values()))' |
+          while IFS= read -r REFERENCE; do
+            cosign verify \
+              --certificate-identity "${COSIGN_CERTIFICATE_IDENTITY}" \
+              --certificate-oidc-issuer "${COSIGN_OIDC_ISSUER}" \
+              "${REFERENCE}" >/dev/null
+          done
+
+      - name: Update dev desired state
+        id: values
+        run: |
+          ruby scripts/update-release-values.rb /tmp/release-manifest.json "${HELM_VALUES_FILE}"
+          helm lint helm/voting-app --values "${HELM_VALUES_FILE}"
+          helm template voting-dev helm/voting-app --values "${HELM_VALUES_FILE}" >/dev/null
+
+          if git diff --quiet -- "${HELM_VALUES_FILE}"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create dev promotion pull request
+        id: promotion
+        if: steps.values.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          BRANCH="automation/promote-dev"
+          git config user.name "voting-promotion-bot[bot]"
+          git config user.email "voting-promotion-bot[bot]@users.noreply.github.com"
+          git switch -C "${BRANCH}"
+          git add "${HELM_VALUES_FILE}"
+          git commit -m "Promote dev release ${RELEASE_ID}"
+          git push --force --set-upstream origin "${BRANCH}"
+
+          PR_URL=$(gh pr list --base main --head "${BRANCH}" --state open --json url --jq '.[0].url')
+          if [ -z "${PR_URL}" ]; then
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "${BRANCH}" \
+              --title "Promote dev release ${RELEASE_ID}" \
+              --body "Promotes the signed release manifest for ${RELEASE_ID} by immutable ECR digest.")
+          fi
+          gh pr merge "${PR_URL}" --auto --squash --delete-branch
+          echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for promotion merge
+        if: steps.values.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ steps.promotion.outputs.pr_url }}
+        run: |
+          for _ in $(seq 1 120); do
+            STATE=$(gh pr view "${PR_URL}" --json state --jq .state)
+            case "${STATE}" in
+              MERGED) exit 0 ;;
+              CLOSED) echo "Promotion PR closed without merging." >&2; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Timed out waiting for promotion PR to merge." >&2
+          exit 1
+
+      - name: Verify dev rollout and image digests
+        run: |
+          aws eks update-kubeconfig --region "${AWS_REGION}" --name "${EKS_CLUSTER_NAME}"
+
+          for _ in $(seq 1 60); do
+            kubectl get deployment vote -n "${K8S_NAMESPACE}" >/dev/null 2>&1 && break
+            sleep 10
+          done
+
+          kubectl rollout status statefulset/db -n "${K8S_NAMESPACE}" --timeout=10m
+          for DEPLOYMENT in redis vote result worker; do
+            kubectl rollout status "deployment/${DEPLOYMENT}" -n "${K8S_NAMESPACE}" --timeout=10m
+          done
+
+          for SERVICE in vote result worker; do
+            EXPECTED=$(SERVICE="${SERVICE}" python3 -c 'import json,os; print(json.load(open("/tmp/release-manifest.json"))["images"][os.environ["SERVICE"]]["reference"])')
+            ACTUAL=$(kubectl get deployment "${SERVICE}" -n "${K8S_NAMESPACE}" -o jsonpath='{.spec.template.spec.containers[0].image}')
+            test "${ACTUAL}" = "${EXPECTED}"
+          done
+
+      - name: Run in-cluster dev smoke test
+        run: |
+          SMOKE_POD="release-smoke-${GITHUB_RUN_ID}"
+          VOTE_IMAGE=$(python3 -c 'import json; print(json.load(open("/tmp/release-manifest.json"))["images"]["vote"]["reference"])')
+          cleanup() {
+            kubectl delete pod "${SMOKE_POD}" -n "${K8S_NAMESPACE}" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          kubectl delete pod "${SMOKE_POD}" -n "${K8S_NAMESPACE}" --ignore-not-found
+          kubectl run "${SMOKE_POD}" \
+            -n "${K8S_NAMESPACE}" \
+            --image="${VOTE_IMAGE}" \
+            --restart=Never \
+            --command -- python -c \
+              'import urllib.request; urllib.request.urlopen("http://vote", timeout=10); urllib.request.urlopen("http://result:4000", timeout=10)'
+
+          for _ in $(seq 1 60); do
+            PHASE=$(kubectl get pod "${SMOKE_POD}" -n "${K8S_NAMESPACE}" -o jsonpath='{.status.phase}')
+            case "${PHASE}" in
+              Succeeded) break ;;
+              Failed)
+                kubectl logs "${SMOKE_POD}" -n "${K8S_NAMESPACE}"
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+          test "$(kubectl get pod "${SMOKE_POD}" -n "${K8S_NAMESPACE}" -o jsonpath='{.status.phase}')" = "Succeeded"
+
+      - name: Record successful dev deployment
+        env:
+          WORKFLOW_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TESTED_PARAMETER="${SSM_RELEASES_PATH}/${RELEASE_ID}/tested/dev"
+          if ! aws ssm get-parameter --name "${TESTED_PARAMETER}" >/dev/null 2>&1; then
+            aws ssm put-parameter \
+              --name "${TESTED_PARAMETER}" \
+              --type String \
+              --value "{\"status\":\"succeeded\",\"workflow_url\":\"${WORKFLOW_URL}\"}"
+          fi
+          aws ssm put-parameter \
+            --name "${SSM_ENV_PATH}/current-release" \
+            --type String \
+            --value "${RELEASE_ID}" \
+            --overwrite

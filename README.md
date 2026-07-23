@@ -239,66 +239,36 @@ The Docker CI workflow builds images, scans them using Trivy, starts the applica
 
 ---
 
-### CD
+### Release and Promotion
 
-CD runs on push to `main` or manual workflow dispatch.
+Application changes merged to `main` run `.github/workflows/release.yml`.
+The workflow builds the three application images once, scans them, publishes
+full commit SHA tags, signs their immutable digests with Cosign, and stores an
+immutable release manifest in SSM Parameter Store.
 
-CD workflow:
+Dev promotion is automatic and production promotion is manually approved
+through `.github/workflows/promote-prod.yml`. Both promotions update Git through
+a GitHub App; Argo CD is the only component that applies application resources
+to EKS.
 
-```text
-.github/workflows/cd.yml
-```
-
-The CD pipeline:
-
-1. Builds Docker images
-2. Scans images with Trivy
-3. Assumes an AWS IAM role using GitHub Actions OIDC
-4. Logs in to Amazon ECR
-5. Tags images using both:
-   - short Git commit SHA
-   - `latest`
-6. Pushes images to Amazon ECR
-
-Images pushed to ECR:
-
-```text
-voting-vote
-voting-result
-voting-worker
-```
+See [DELIVERY.md](DELIVERY.md) for bootstrap, migration, daily operations, and
+rollback commands.
 
 ---
 
 ## AWS Infrastructure as Code
 
-Terraform is used to define the AWS dev infrastructure.
-
-Terraform environment:
+Terraform is split by lifecycle:
 
 ```text
+infra/terraform/environments/shared
 infra/terraform/environments/dev
 ```
 
-Terraform modules include:
-
-```text
-infra/terraform/modules/vpc
-infra/terraform/modules/eks
-infra/terraform/modules/ecr
-infra/terraform/modules/github-oidc
-```
-
-The dev infrastructure is designed to create:
-
-- VPC
-- Public and private subnets
-- NAT Gateway
-- EKS cluster
-- EKS managed node group
-- ECR repositories
-- GitHub Actions OIDC role
-- KMS key for EKS secrets encryption
+The persistent `shared` stack owns ECR and the least-privilege GitHub Actions
+roles. The ephemeral `dev` stack owns the VPC, one EKS cluster, Argo CD,
+monitoring, and isolated `voting-dev` and `voting-prod` namespaces. Daily
+destroy operations target only the `dev` stack.
 
 The EKS module uses the official `terraform-aws-modules/eks/aws` module and configures:
 
@@ -352,14 +322,12 @@ Render Kubernetes manifests:
 helm template voting-app ./helm/voting-app --namespace voting-dev
 ```
 
-Deploy to Kubernetes/EKS:
+Application deployment is owned by Argo CD. Bootstrap its Applications after
+creating the cluster:
 
 ```bash
-helm upgrade --install voting-app ./helm/voting-app \
-  --namespace voting-dev \
-  --create-namespace \
-  --set image.registry=911540681678.dkr.ecr.us-east-1.amazonaws.com \
-  --set image.tag=latest
+kubectl apply -f argocd/applications/voting-app-dev.yaml
+kubectl apply -f argocd/applications/voting-app-prod.yaml
 ```
 
 ---
@@ -451,7 +419,7 @@ Completed:
 - GitHub Actions CI
 - Trivy vulnerability scanning
 - SonarCloud code quality workflow
-- CD workflow for ECR image push
+- Build-once release and digest promotion workflows
 - AWS OIDC authentication for GitHub Actions
 - Terraform modules for AWS infrastructure
 - Helm chart for Kubernetes deployment
@@ -460,9 +428,7 @@ Completed:
 
 In progress:
 
-- Recreating EKS after previous `terraform destroy`
-- Deploying the Helm chart to EKS
-- Adding Kubernetes-native monitoring with `kube-prometheus-stack`
+- First shared-stack migration and end-to-end release verification
 - Adding `ServiceMonitor` resources for application metrics
 - Provisioning Grafana dashboards inside EKS
 
@@ -472,17 +438,12 @@ In progress:
 
 Planned improvements:
 
-- Fix Terraform bootstrap flow for recreating EKS from zero state
-- Deploy application to EKS using Helm
-- Add `kube-prometheus-stack` to EKS
 - Add `ServiceMonitor` for `vote` and `result`
 - Add Grafana dashboard ConfigMap for Kubernetes monitoring
 - Add Kubernetes readiness and liveness probes
 - Add resource requests and limits
 - Move hardcoded credentials to Kubernetes Secrets or external secret management
 - Add integration tests for the full voting flow
-- Add CD deployment step from ECR to EKS
-- Improve Helm values for dev/prod environments
 
 ---
 

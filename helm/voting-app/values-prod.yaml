@@ -1,16 +1,25 @@
 namespace: voting-prod
 
-image:
-  tag: "ab5d39a"
+imagePullSecrets: []
+
+release:
+  id: "0000000000000000000000000000000000000000"
 
 vote:
   replicaCount: 2
+  image:
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 result:
   replicaCount: 2
+  image:
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 worker:
   replicaCount: 1
+  image:
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 postgres:
   storage: 5Gi
+  storageClassName: gp2

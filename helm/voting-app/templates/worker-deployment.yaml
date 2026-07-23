@@ -12,11 +12,13 @@ spec:
     metadata:
       labels:
         app: worker
+      annotations:
+        voting.devsecops/release-id: {{ .Values.release.id | quote }}
     spec:
       imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       containers:
         - name: worker
-          image: "{{ .Values.image.registry }}/{{ .Values.worker.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.registry }}/{{ .Values.worker.image.repository }}@{{ .Values.worker.image.digest }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom:
             - secretRef:

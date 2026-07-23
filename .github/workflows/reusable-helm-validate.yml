@@ -13,13 +13,28 @@ jobs:
 
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b
+        with:
+          ruby-version: "3.3"
 
       - name: Check Helm version
         run: helm version
 
       - name: Helm Lint
-        run: helm lint ./helm/voting-app
+        run: |
+          helm lint ./helm/voting-app
+          helm lint ./helm/voting-app --values ./helm/voting-app/values-dev.yaml
+          helm lint ./helm/voting-app --values ./helm/voting-app/values-prod.yaml
 
       - name: Helm Template
-        run: helm template voting-app ./helm/voting-app
+        run: |
+          helm template voting-dev ./helm/voting-app --values ./helm/voting-app/values-dev.yaml
+          helm template voting-prod ./helm/voting-app --values ./helm/voting-app/values-prod.yaml
+
+      - name: Test release tooling
+        run: |
+          ruby scripts/test-release-tools.rb
+          python3 scripts/test-release-retention.py

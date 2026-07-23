@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["release", "image", "vote", "result", "worker"],
+  "properties": {
+    "release": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": ["registry", "pullPolicy"],
+      "properties": {
+        "registry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "vote": {
+      "$ref": "#/definitions/applicationService"
+    },
+    "result": {
+      "$ref": "#/definitions/applicationService"
+    },
+    "worker": {
+      "$ref": "#/definitions/applicationService"
+    }
+  },
+  "definitions": {
+    "applicationService": {
+      "type": "object",
+      "required": ["image"],
+      "properties": {
+        "image": {
+          "type": "object",
+          "required": ["repository", "digest"],
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

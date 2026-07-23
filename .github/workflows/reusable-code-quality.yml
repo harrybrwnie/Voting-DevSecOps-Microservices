@@ -2,6 +2,12 @@ name: Reuseable - Code Quality
 
 on:
   workflow_call:
+    inputs:
+      run_scan:
+        description: Run SonarCloud for application changes
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -13,12 +19,18 @@ jobs:
 
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v4
+        if: inputs.run_scan
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
            fetch-depth: 0
 
       - name: SonarCloud code quality scan
-        uses: SonarSource/sonarqube-scan-action@v5.0.0
+        if: inputs.run_scan
+        uses: SonarSource/sonarqube-scan-action@0303d6b62e310685c0e34d0b9cde218036885c4d
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+
+      - name: Skip code quality scan for deployment-only change
+        if: ${{ !inputs.run_scan }}
+        run: echo "No application source changed; SonarCloud is not required."
