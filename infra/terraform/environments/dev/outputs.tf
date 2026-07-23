@@ -1,13 +1,3 @@
-output "ecr_repository_urls" {
-  description = "ECR repository URLs"
-  value       = module.ecr.repository_urls
-}
-
-output "github_actions_role_arn" {
-  description = "GitHub Actions IAM Role ARN"
-  value       = var.manage_github_oidc ? module.github_oidc[0].role_arn : null
-}
-
 output "vpc_id" {
   description = "Dev VPC ID"
   value       = module.vpc.vpc_id
@@ -84,9 +74,23 @@ output "voting_namespace" {
   value       = kubernetes_namespace.voting.metadata[0].name
 }
 
+output "voting_prod_namespace" {
+  description = "Production voting application namespace"
+  value       = kubernetes_namespace.voting_prod.metadata[0].name
+}
+
 output "postgres_secret_name" {
   description = "Kubernetes Secret containing PostgreSQL credentials"
   value       = kubernetes_secret.postgres.metadata[0].name
+}
+
+output "shared_delivery_roles" {
+  description = "Persistent GitHub Actions delivery role ARNs"
+  value = {
+    release = data.terraform_remote_state.shared.outputs.release_role_arn
+    dev     = data.terraform_remote_state.shared.outputs.dev_role_arn
+    prod    = data.terraform_remote_state.shared.outputs.prod_role_arn
+  }
 }
 
 output "monitoring_namespace" {

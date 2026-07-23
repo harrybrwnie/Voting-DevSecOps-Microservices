@@ -48,3 +48,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "access_entries" {
+  description = "EKS access entries and namespace-scoped policy associations"
+  type        = any
+  default     = {}
+}

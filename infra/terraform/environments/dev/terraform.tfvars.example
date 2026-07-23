@@ -1,15 +1,5 @@
 aws_region = "us-east-1"
 
-github_owner = "harrybrwnie"
-github_repo  = "Voting-DevSecOps-Microservices"
-
-github_actions_role_name = "github-actions-voting-devsecops-role"
-manage_github_oidc       = false
-
-ecr_force_delete         = false
-ecr_image_tag_mutability = "IMMUTABLE"
-ecr_max_image_count      = 20
-
 vpc_cidr = "10.0.0.0/16"
 
 availability_zones = [
@@ -45,6 +35,7 @@ argocd_namespace     = "argocd"
 argocd_chart_version = null
 
 voting_namespace     = "voting-dev"
+voting_prod_namespace = "voting-prod"
 postgres_secret_name = "postgres-credentials"
 postgres_user        = "postgres"
 postgres_database    = "postgres"

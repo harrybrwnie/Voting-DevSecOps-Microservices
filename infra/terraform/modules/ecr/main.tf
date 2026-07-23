@@ -20,7 +20,7 @@ resource "aws_ecr_lifecycle_policy" "this" {
     rules = [
       {
         rulePriority = 1
-        description  = "Keep only last 3 images"
+        description  = "Keep only the configured number of release images"
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
