@@ -12,6 +12,40 @@ permissions:
   actions: read
 
 jobs:
+  detect-changes:
+    name: Detect application changes
+    runs-on: ubuntu-latest
+    outputs:
+      application: ${{ steps.changes.outputs.application }}
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Detect application and container changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "${EVENT_NAME}" != "pull_request" ]; then
+            echo "application=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          APPLICATION=false
+          while IFS= read -r FILE; do
+            case "${FILE}" in
+              vote/*|result/*|worker/*|docker-compose.yml|.github/workflows/reusable-docker-ci.yml)
+                APPLICATION=true
+                ;;
+            esac
+          done < <(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")
+          echo "application=${APPLICATION}" >> "$GITHUB_OUTPUT"
+
   secret-scan:
     name: Secret scan
     uses: ./.github/workflows/reusable-secret-scan.yml
@@ -25,13 +59,19 @@ jobs:
     name: Code Quality Scan
     uses: ./.github/workflows/reusable-code-quality.yml
     secrets: inherit
+    needs: detect-changes
+    with:
+      run_scan: ${{ needs.detect-changes.outputs.application == 'true' }}
 
   docker-ci:
     name: Docker Build, Image Scan and Compose Test
     uses: ./.github/workflows/reusable-docker-ci.yml
     needs:
+      - detect-changes
       - secret-scan
       - source-scan
+    with:
+      run_build: ${{ needs.detect-changes.outputs.application == 'true' }}
 
   helm-validate:
     name: Helm validate

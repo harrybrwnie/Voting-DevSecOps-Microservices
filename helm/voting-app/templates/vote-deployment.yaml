@@ -12,11 +12,13 @@ spec:
     metadata:
       labels:
         app: vote
+      annotations:
+        voting.devsecops/release-id: {{ .Values.release.id | quote }}
     spec:
       imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       containers:
         - name: vote
-          image: "{{ .Values.image.registry }}/{{ .Values.vote.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.registry }}/{{ .Values.vote.image.repository }}@{{ .Values.vote.image.digest }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 80

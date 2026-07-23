@@ -1,17 +1,20 @@
 namespace: voting-dev
 
+release:
+  id: "0000000000000000000000000000000000000000"
+
 imagePullSecrets:
   - name: ecr-secret
 
 image:
   registry: "911540681678.dkr.ecr.us-east-1.amazonaws.com"
-  tag: "ab5d39a"
   pullPolicy: IfNotPresent
 
 vote:
   replicaCount: 1
   image:
     repository: voting-vote
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   service:
     type: ClusterIP
     port: 80
@@ -21,6 +24,7 @@ result:
   replicaCount: 1
   image:
     repository: voting-result
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   service:
     type: ClusterIP
     port: 4000
@@ -29,9 +33,10 @@ result:
     port: "4000"
 
 worker:
-    replicaCount: 1
-    image:
-      repository: voting-worker
+  replicaCount: 1
+  image:
+    repository: voting-worker
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 redis:
   image: redis:7-alpine

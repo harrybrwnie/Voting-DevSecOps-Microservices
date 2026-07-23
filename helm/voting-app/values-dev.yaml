@@ -2,21 +2,27 @@ namespace: voting-dev
 
 imagePullSecrets: []
 
-image:
-  tag: "1b61f9d21134d7ceb8c15e652b2c586336612c5f"
+release:
+  id: "0000000000000000000000000000000000000000"
 
 vote:
   replicaCount: 1
+  image:
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   service:
     type: ClusterIP
 
 result:
   replicaCount: 1
+  image:
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   service:
     type: ClusterIP
 
 worker:
   replicaCount: 1
+  image:
+    digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 postgres:
   storage: 1Gi
