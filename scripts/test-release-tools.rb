@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "rbconfig"
 require "tmpdir"
 require "yaml"
 require_relative "lib/release_manifest"
@@ -9,6 +10,7 @@ require_relative "lib/release_manifest"
 release_id = "a" * 40
 digest = "sha256:#{'b' * 64}"
 registry = ReleaseManifest::REGISTRY
+updater = File.expand_path("update-release-values.rb", __dir__)
 
 manifest = {
   "schema_version" => 1,
@@ -40,7 +42,7 @@ Dir.mktmpdir do |directory|
   ).to_yaml)
 
   ReleaseManifest.load!(manifest_path, release_id)
-  system(File.expand_path("update-release-values.rb", __dir__), manifest_path, values_path) || abort("update failed")
+  system(RbConfig.ruby, updater, manifest_path, values_path) || abort("update failed")
 
   updated = YAML.safe_load(File.read(values_path), aliases: false)
   abort "release ID was not updated" unless updated.dig("release", "id") == release_id
@@ -84,7 +86,7 @@ Dir.mktmpdir do |directory|
   end
 
   missing_values = File.join(directory, "missing-values.yaml")
-  if system(File.expand_path("update-release-values.rb", __dir__), manifest_path, missing_values)
+  if system(RbConfig.ruby, updater, manifest_path, missing_values, out: File::NULL, err: File::NULL)
     abort "nonexistent values file was accepted"
   end
 end
