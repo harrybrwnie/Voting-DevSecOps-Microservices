@@ -103,6 +103,17 @@ module "eks" {
   node_max_size       = var.eks_node_max_size
   node_desired_size   = var.eks_node_desired_size
 
+  node_security_group_additional_rules = {
+    ingress_nodes_vote_http = {
+      description = "Node-to-node voting app HTTP"
+      protocol    = "tcp"
+      from_port   = 80
+      to_port     = 80
+      type        = "ingress"
+      self        = true
+    }
+  }
+
   access_entries = {
     github_dev = {
       principal_arn = data.terraform_remote_state.shared.outputs.dev_role_arn

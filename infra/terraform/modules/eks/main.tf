@@ -14,6 +14,7 @@ module "eks" {
 
   enable_cluster_creator_admin_permissions = true
   access_entries                           = var.access_entries
+  node_security_group_additional_rules     = var.node_security_group_additional_rules
 
   cluster_addons = {
     coredns = {
