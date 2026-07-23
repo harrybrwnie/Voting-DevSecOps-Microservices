@@ -408,10 +408,32 @@ jobs:
         run: |
           aws eks update-kubeconfig --region "${AWS_REGION}" --name "${EKS_CLUSTER_NAME}"
 
+          RELEASE_APPLIED=false
           for _ in $(seq 1 60); do
-            kubectl get deployment vote -n "${K8S_NAMESPACE}" >/dev/null 2>&1 && break
+            RELEASE_APPLIED=true
+            for SERVICE in vote result worker; do
+              ACTUAL_RELEASE=$(kubectl get deployment "${SERVICE}" \
+                -n "${K8S_NAMESPACE}" \
+                -o jsonpath='{.spec.template.metadata.annotations.voting\.devsecops/release-id}' \
+                2>/dev/null || true)
+              if [ "${ACTUAL_RELEASE}" != "${RELEASE_ID}" ]; then
+                echo "Waiting for Argo CD: ${SERVICE} has release '${ACTUAL_RELEASE:-missing}', expected '${RELEASE_ID}'."
+                RELEASE_APPLIED=false
+              fi
+            done
+
+            if [ "${RELEASE_APPLIED}" = true ]; then
+              break
+            fi
             sleep 10
           done
+
+          if [ "${RELEASE_APPLIED}" != true ]; then
+            echo "Timed out waiting for Argo CD to apply release ${RELEASE_ID}." >&2
+            kubectl get deployments -n "${K8S_NAMESPACE}" \
+              -o custom-columns='NAME:.metadata.name,RELEASE:.spec.template.metadata.annotations.voting\.devsecops/release-id,IMAGE:.spec.template.spec.containers[0].image'
+            exit 1
+          fi
 
           kubectl rollout status statefulset/db -n "${K8S_NAMESPACE}" --timeout=10m
           for DEPLOYMENT in redis vote result worker; do
