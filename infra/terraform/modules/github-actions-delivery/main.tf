@@ -99,10 +99,16 @@ data "aws_iam_policy_document" "release" {
       "ssm:DeleteParameters",
       "ssm:GetParameter",
       "ssm:GetParameters",
-      "ssm:GetParametersByPath",
       "ssm:PutParameter"
     ]
     resources = ["${var.ssm_parameter_arn_prefix}/releases/*"]
+  }
+
+  statement {
+    sid       = "ListReleaseRegistry"
+    effect    = "Allow"
+    actions   = ["ssm:GetParametersByPath"]
+    resources = ["${var.ssm_parameter_arn_prefix}/releases"]
   }
 
   statement {
@@ -150,10 +156,16 @@ data "aws_iam_policy_document" "environment" {
     effect = "Allow"
     actions = [
       "ssm:GetParameter",
-      "ssm:GetParameters",
-      "ssm:GetParametersByPath"
+      "ssm:GetParameters"
     ]
     resources = ["${var.ssm_parameter_arn_prefix}/releases/*"]
+  }
+
+  statement {
+    sid       = "ListReleaseRegistry"
+    effect    = "Allow"
+    actions   = ["ssm:GetParametersByPath"]
+    resources = ["${var.ssm_parameter_arn_prefix}/releases"]
   }
 
   statement {
