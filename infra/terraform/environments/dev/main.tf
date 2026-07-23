@@ -36,6 +36,16 @@ provider "aws" {
   region = var.aws_region
 }
 
+data "terraform_remote_state" "shared" {
+  backend = "s3"
+
+  config = {
+    bucket = "h4rrybrwnie-voting-tfstate-911540681678-us-east-1"
+    key    = "shared/terraform.tfstate"
+    region = var.aws_region
+  }
+}
+
 data "aws_eks_cluster_auth" "dev" {
   name = module.eks.cluster_name
 }
@@ -93,22 +103,35 @@ module "eks" {
   node_max_size       = var.eks_node_max_size
   node_desired_size   = var.eks_node_desired_size
 
+  access_entries = {
+    github_dev = {
+      principal_arn = data.terraform_remote_state.shared.outputs.dev_role_arn
+      policy_associations = {
+        namespace_edit = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
+          access_scope = {
+            type       = "namespace"
+            namespaces = [var.voting_namespace]
+          }
+        }
+      }
+    }
+
+    github_prod = {
+      principal_arn = data.terraform_remote_state.shared.outputs.prod_role_arn
+      policy_associations = {
+        namespace_edit = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
+          access_scope = {
+            type       = "namespace"
+            namespaces = [var.voting_prod_namespace]
+          }
+        }
+      }
+    }
+  }
+
   tags = local.common_tags
-}
-
-module "ecr" {
-  source = "../../modules/ecr"
-
-  repository_names = [
-    "voting-vote",
-    "voting-result",
-    "voting-worker"
-  ]
-
-  force_delete         = var.ecr_force_delete
-  image_tag_mutability = var.ecr_image_tag_mutability
-  max_image_count      = var.ecr_max_image_count
-  tags                 = local.common_tags
 }
 
 module "argocd" {
@@ -146,10 +169,53 @@ resource "kubernetes_namespace" "voting" {
   depends_on = [module.eks]
 }
 
+resource "kubernetes_namespace" "voting_prod" {
+  metadata {
+    name = var.voting_prod_namespace
+
+    labels = {
+      "app.kubernetes.io/name"        = "voting-app"
+      "app.kubernetes.io/environment" = "prod"
+      "app.kubernetes.io/managed-by"  = "terraform"
+    }
+  }
+
+  depends_on = [module.eks]
+}
+
 resource "random_password" "postgres" {
   length           = 32
   special          = true
   override_special = "!#$%&*()-_=+"
+}
+
+resource "random_password" "postgres_prod" {
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+"
+}
+
+resource "kubernetes_secret" "postgres_prod" {
+  metadata {
+    name      = var.postgres_secret_name
+    namespace = kubernetes_namespace.voting_prod.metadata[0].name
+
+    labels = {
+      "app.kubernetes.io/name"        = "postgres"
+      "app.kubernetes.io/component"   = "database"
+      "app.kubernetes.io/environment" = "prod"
+      "app.kubernetes.io/managed-by"  = "terraform"
+    }
+  }
+
+  type = "Opaque"
+
+  data = {
+    POSTGRES_HOST     = "db"
+    POSTGRES_USER     = var.postgres_user
+    POSTGRES_PASSWORD = random_password.postgres_prod.result
+    POSTGRES_DB       = var.postgres_database
+  }
 }
 
 resource "kubernetes_secret" "postgres" {
@@ -285,18 +351,4 @@ resource "helm_release" "monitoring" {
   depends_on = [
     kubernetes_secret.grafana_admin
   ]
-}
-
-module "github_oidc" {
-  count = var.manage_github_oidc ? 1 : 0
-
-  source = "../../modules/github-oidc"
-
-  github_owner = var.github_owner
-  github_repo  = var.github_repo
-  role_name    = var.github_actions_role_name
-
-  ecr_repository_arns = values(module.ecr.repository_arns)
-
-  tags = local.common_tags
 }

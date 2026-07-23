@@ -3,55 +3,6 @@ variable "aws_region" {
   type        = string
 }
 
-variable "github_owner" {
-  description = "GitHub owner"
-  type        = string
-}
-
-variable "github_repo" {
-  description = "GitHub repository name"
-  type        = string
-}
-
-variable "github_actions_role_name" {
-  description = "IAM role name for GitHub Actions"
-  type        = string
-}
-
-variable "manage_github_oidc" {
-  description = "Whether Terraform should manage the GitHub Actions OIDC provider and ECR push role. Keep false when these were created manually."
-  type        = bool
-  default     = false
-}
-
-variable "ecr_force_delete" {
-  description = "Whether to force delete ECR repositories"
-  type        = bool
-  default     = false
-}
-
-variable "ecr_image_tag_mutability" {
-  description = "Whether ECR image tags can be overwritten"
-  type        = string
-  default     = "IMMUTABLE"
-
-  validation {
-    condition     = contains(["IMMUTABLE", "MUTABLE"], var.ecr_image_tag_mutability)
-    error_message = "ecr_image_tag_mutability must be IMMUTABLE or MUTABLE."
-  }
-}
-
-variable "ecr_max_image_count" {
-  description = "Maximum number of images retained in each ECR repository"
-  type        = number
-  default     = 20
-
-  validation {
-    condition     = var.ecr_max_image_count >= 3
-    error_message = "ecr_max_image_count must be at least 3."
-  }
-}
-
 variable "vpc_cidr" {
   description = "CIDR block for the dev VPC"
   type        = string
@@ -130,6 +81,12 @@ variable "voting_namespace" {
   description = "Namespace where the voting application will run"
   type        = string
   default     = "voting-dev"
+}
+
+variable "voting_prod_namespace" {
+  description = "Namespace where the production voting application will run"
+  type        = string
+  default     = "voting-prod"
 }
 
 variable "postgres_secret_name" {

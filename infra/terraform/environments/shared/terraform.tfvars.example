@@ -1,0 +1,7 @@
+aws_region = "us-east-1"
+
+github_owner = "harrybrwnie"
+github_repo  = "Voting-DevSecOps-Microservices"
+
+eks_cluster_name       = "voting-dev-eks"
+release_retention_count = 20
