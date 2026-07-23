@@ -54,3 +54,9 @@ variable "access_entries" {
   type        = any
   default     = {}
 }
+
+variable "node_security_group_additional_rules" {
+  description = "Additional rules for the EKS node security group"
+  type        = any
+  default     = {}
+}
