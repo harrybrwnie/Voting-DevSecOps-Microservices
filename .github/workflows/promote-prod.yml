@@ -31,8 +31,8 @@ jobs:
       SSM_RELEASES_PATH: ${{ vars.SSM_RELEASES_PATH }}
       SSM_ENV_PATH: ${{ vars.SSM_ENV_PATH }}
       HELM_VALUES_FILE: ${{ vars.HELM_VALUES_FILE }}
-      COSIGN_CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/heads/main
-      COSIGN_OIDC_ISSUER: https://token.actions.githubusercontent.com
+      EXPECTED_CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/heads/main
+      EXPECTED_OIDC_ISSUER: https://token.actions.githubusercontent.com
       RELEASE_ID: ${{ inputs.release_id }}
 
     steps:
@@ -107,8 +107,8 @@ jobs:
           python3 -c 'import json; print("\n".join(v["reference"] for v in json.load(open("/tmp/release-manifest.json"))["images"].values()))' |
           while IFS= read -r REFERENCE; do
             cosign verify \
-              --certificate-identity "${COSIGN_CERTIFICATE_IDENTITY}" \
-              --certificate-oidc-issuer "${COSIGN_OIDC_ISSUER}" \
+              --certificate-identity "${EXPECTED_CERTIFICATE_IDENTITY}" \
+              --certificate-oidc-issuer "${EXPECTED_OIDC_ISSUER}" \
               "${REFERENCE}" >/dev/null
           done
 
