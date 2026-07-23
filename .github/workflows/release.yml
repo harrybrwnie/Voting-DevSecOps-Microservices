@@ -376,15 +376,71 @@ jobs:
           git commit -m "Promote dev release ${RELEASE_ID}"
           git push --force --set-upstream origin "${BRANCH}"
 
-          PR_URL=$(gh pr list --base main --head "${BRANCH}" --state open --json url --jq '.[0].url')
-          if [ -z "${PR_URL}" ]; then
-            PR_URL=$(gh pr create \
+          PR_URL=""
+          for ATTEMPT in $(seq 1 6); do
+            PR_URL=$(gh pr list \
+              --base main \
+              --head "${BRANCH}" \
+              --state open \
+              --json url \
+              --jq '.[0].url' 2>/dev/null || true)
+            if [ -n "${PR_URL}" ]; then
+              break
+            fi
+
+            echo "Promotion PR not found; create attempt ${ATTEMPT}/6."
+            if ! gh pr create \
               --base main \
               --head "${BRANCH}" \
               --title "Promote dev release ${RELEASE_ID}" \
-              --body "Promotes the signed release manifest for ${RELEASE_ID} by immutable ECR digest.")
+              --body "Promotes the signed release manifest for ${RELEASE_ID} by immutable ECR digest."; then
+              echo "GitHub did not confirm PR creation; checking the branch again before retrying." >&2
+            fi
+            sleep 10
+          done
+
+          if [ -z "${PR_URL}" ]; then
+            PR_URL=$(gh pr list \
+              --base main \
+              --head "${BRANCH}" \
+              --state open \
+              --json url \
+              --jq '.[0].url' 2>/dev/null || true)
           fi
-          gh pr merge "${PR_URL}" --auto --squash --delete-branch
+          if [ -z "${PR_URL}" ]; then
+            echo "Unable to find or create the dev promotion PR after 6 attempts." >&2
+            exit 1
+          fi
+
+          AUTO_MERGE_READY=false
+          for ATTEMPT in $(seq 1 6); do
+            PR_STATE=$(gh pr view "${PR_URL}" \
+              --json state,autoMergeRequest \
+              --jq 'if .state == "MERGED" or .autoMergeRequest != null then "ready" else "pending" end' \
+              2>/dev/null || true)
+            if [ "${PR_STATE}" = ready ]; then
+              AUTO_MERGE_READY=true
+              break
+            fi
+
+            echo "Enable auto-merge attempt ${ATTEMPT}/6."
+            if ! gh pr merge "${PR_URL}" --auto --squash --delete-branch; then
+              echo "GitHub did not confirm auto-merge; checking PR state before retrying." >&2
+            fi
+            sleep 10
+          done
+
+          if [ "${AUTO_MERGE_READY}" != true ]; then
+            PR_STATE=$(gh pr view "${PR_URL}" \
+              --json state,autoMergeRequest \
+              --jq 'if .state == "MERGED" or .autoMergeRequest != null then "ready" else "pending" end' \
+              2>/dev/null || true)
+            if [ "${PR_STATE}" != ready ]; then
+              echo "Unable to enable auto-merge for ${PR_URL} after 6 attempts." >&2
+              exit 1
+            fi
+          fi
+
           echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
 
       - name: Wait for promotion merge
